@@ -28,7 +28,7 @@ class DistributionSimulator:
 
 def mine(x, y, n_hidden=50, lr=0.1, batch_size=128, early_stopping=40):
     ds = DistributionSimulator(x, y)
-    initializer = tf.glorot_uniform_initializer()
+    initializer = tf.glorot_normal_initializer()
     xy_in = tf.placeholder(tf.float32, shape=[None, 2])
     xy_bar_in = tf.placeholder(tf.float32, shape=[None, 2])
     W_1 = tf.Variable(initializer([2, n_hidden]), dtype=tf.float32)
@@ -62,7 +62,7 @@ def mine(x, y, n_hidden=50, lr=0.1, batch_size=128, early_stopping=40):
             batch_x_y = np.array([batch[:, 0], batch[:, -1]]).T
             _, loss = sess.run([opt, neg_loss], feed_dict={xy_in: batch_xy, xy_bar_in: batch_x_y})
             losses.append(loss)
-        if epoch > early_stopping:
+        if epoch > 1.5*early_stopping:
             if loss >= np.max(training_loss[-early_stopping:]):
                 break
         print(f'epoch {epoch}, loss {np.mean(losses)}')
