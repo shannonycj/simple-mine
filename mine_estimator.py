@@ -31,8 +31,7 @@ class DistributionSimulator:
         return batch, end_idx == self.pool.shape[0]
 
 
-def mine(x, y, n_hidden=50, lr=0.05, batch_size=64, early_stopping=40):
-    ds = DistributionSimulator(x, y)
+def build_net(n_hidden, lr):
     initializer = tf.variance_scaling_initializer(distribution='uniform')
     xy_in = tf.placeholder(tf.float32, shape=[None, 2])
     xy_bar_in = tf.placeholder(tf.float32, shape=[None, 2])
@@ -50,28 +49,36 @@ def mine(x, y, n_hidden=50, lr=0.05, batch_size=64, early_stopping=40):
     a_2 = tf.nn.leaky_relu(z_2)
     a_2_bar = tf.nn.leaky_relu(z_2_bar)
 
-    neg_loss = -(tf.reduce_mean(a_2, axis=0) - tf.math.log(tf.reduce_mean(tf.math.exp(a_2_bar), axis=0)))
-    opt = tf.train.GradientDescentOptimizer(learning_rate=lr).minimize(neg_loss)
+    neural_info_measure = tf.reduce_mean(a_2, axis=0) - tf.math.log(tf.reduce_mean( \
+                                tf.math.exp(a_2_bar), axis=0))
+    optimize = tf.train.GradientDescentOptimizer(learning_rate=lr).minimize(-neural_info_measure)
+    return xy_in, xy_bar_in, neural_info_measure, optimize
+
+def mine(x, y, n_hidden=50, lr=0.01, batch_size=64, early_stopping=40, stop_wait=100):
+    ds = DistributionSimulator(x, y)
+    
+    xy_in, xy_bar_in, neural_info_measure, optimize = build_net(n_hidden, lr)
     
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
-    training_loss = []
+    neural_info_estimates = []
     for epoch in range(1000):
         ds.reshuffle()
         ds.init_batches(batch_size)
         done = False
-        losses = []
+        batch_mi = []
         while not done:
             batch, done = ds.next_batch()
             batch_xy = batch[:, :2]
             batch_x_y = np.array([batch[:, 0], batch[:, -1]]).T
-            _, loss = sess.run([opt, neg_loss], feed_dict={xy_in: batch_xy, xy_bar_in: batch_x_y})
-            losses.append(loss)
-        if epoch > early_stopping:
-            if loss >= np.max(training_loss[-early_stopping:]):
+            _, mi = sess.run([optimize, neural_info_measure], feed_dict={xy_in: batch_xy, \
+                                                                    xy_bar_in: batch_x_y})
+            batch_mi.append(mi)
+        if epoch > stop_wait:
+            if mi >= np.max(neural_info_estimates[-early_stopping:]):
                 break
-        print(f'epoch {epoch}, loss {np.mean(losses)}')
-        training_loss.append(np.mean(losses))
+        print(f'epoch: {epoch}, MI estimation: {np.mean(batch_mi)}')
+        neural_info_estimates.append(np.mean(batch_mi))
     sess.close()
     eval_idx = max(int(early_stopping/4), 5)
-    return -np.mean(training_loss[-eval_idx:]), training_loss
+    return np.mean(neural_info_estimates[-eval_idx:]), neural_info_estimates

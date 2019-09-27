@@ -18,11 +18,11 @@ if __name__ == "__main__":
     x_sample=gen_x(10000)
     y_sample=gen_y(x_sample, 10000)
 
-    res, loss = mine(x_sample.reshape(-1, ), y_sample.reshape(-1,))
+    res, est_hist = mine(x_sample.reshape(-1, ), y_sample.reshape(-1,))
     mi_numerical = mutual_info_regression(x_sample.reshape(-1, 1), y_sample.reshape(-1,))[0]
     print(f'MINE output {res}')
     print(f'scikit-learn output {mi_numerical}')
-    plt.plot(np.arange(len(loss)), -np.array(loss), label='MINE estimation')
-    plt.plot(np.arange(len(loss)), np.ones(len(loss))*mi_numerical, label='True')
+    plt.plot(np.arange(len(est_hist)), np.array(est_hist), label='MINE estimation')
+    plt.plot(np.arange(len(est_hist)), np.ones(len(est_hist))*mi_numerical, label='True')
     plt.legend()
     plt.show()
