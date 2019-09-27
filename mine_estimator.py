@@ -31,7 +31,7 @@ class DistributionSimulator:
         return batch, end_idx == self.pool.shape[0]
 
 
-def build_net(n_hidden, lr):
+def build_net(n_hidden, lr, global_step, decay_steps):
     initializer = tf.variance_scaling_initializer(distribution='uniform')
     xy_in = tf.placeholder(tf.float32, shape=[None, 2])
     xy_bar_in = tf.placeholder(tf.float32, shape=[None, 2])
@@ -51,21 +51,22 @@ def build_net(n_hidden, lr):
 
     neural_info_measure = tf.reduce_mean(a_2, axis=0) - tf.math.log(tf.reduce_mean( \
                                 tf.math.exp(a_2_bar), axis=0))
-    learning_rate = tf.train.exponential_decay(lr, 100, 10, 0.96, staircase=True)
+    learning_rate = tf.train.exponential_decay(lr, global_step, decay_steps, 0.99, staircase=True)
     optimize = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(-neural_info_measure)
     return xy_in, xy_bar_in, neural_info_measure, optimize
 
-def mine(x, y, n_hidden=50, lr=0.01, batch_size=64, early_stopping=40, stop_wait=100):
+def mine(x, y, n_hidden=50, lr=0.05, batch_size=128, early_stopping=40, stop_wait=100):
     ds = DistributionSimulator(x, y)
-    
-    xy_in, xy_bar_in, neural_info_measure, optimize = build_net(n_hidden, lr)
-    
+    ds.init_batches(batch_size)
+    global_step = ds.n_batch * 100
+    decay_steps = int(global_step / 100)
+    xy_in, xy_bar_in, neural_info_measure, optimize = build_net(n_hidden, lr, global_step, decay_steps)
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
     neural_info_estimates = []
     for epoch in range(1000):
-        ds.reshuffle()
         ds.init_batches(batch_size)
+        ds.reshuffle()
         done = False
         batch_mi = []
         while not done:
