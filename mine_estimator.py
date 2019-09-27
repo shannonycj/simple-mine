@@ -51,7 +51,8 @@ def build_net(n_hidden, lr):
 
     neural_info_measure = tf.reduce_mean(a_2, axis=0) - tf.math.log(tf.reduce_mean( \
                                 tf.math.exp(a_2_bar), axis=0))
-    optimize = tf.train.GradientDescentOptimizer(learning_rate=lr).minimize(-neural_info_measure)
+    learning_rate = tf.train.exponential_decay(lr, 100, 10, 0.96, staircase=True)
+    optimize = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(-neural_info_measure)
     return xy_in, xy_bar_in, neural_info_measure, optimize
 
 def mine(x, y, n_hidden=50, lr=0.01, batch_size=64, early_stopping=40, stop_wait=100):
