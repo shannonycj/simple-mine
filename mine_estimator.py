@@ -9,12 +9,14 @@ class DistributionSimulator:
         self.standardize()
     
     def standardize(self):
-        self.x = (self.x - self.x.mean())/self.x.std()
+        self.x = (self.x - self.x.mean(axis=0, keepdims=True))/self.x.std(axis=0, keepdims=True)
+        #self.x = (self.x - self.x.mean())/self.x.std()
         self.y = (self.y - self.y.mean())/self.y.std()
 
     def reshuffle(self):
         y_cpy = self.y.copy()
-        pool = np.array([self.x, self.y]).T
+        pool = np.concatenate([self.x, self.y.reshape(-1, 1)], axis=1)
+        #pool = np.array([self.x, self.y]).T
         np.random.shuffle(pool)
         np.random.shuffle(y_cpy)
         self.pool = np.concatenate([pool, y_cpy.reshape(-1, 1)], axis=1)
@@ -31,11 +33,11 @@ class DistributionSimulator:
         return batch, end_idx == self.pool.shape[0]
 
 
-def build_net(n_hidden, lr, global_step, decay_steps):
+def build_net(n_hidden, lr, global_step, decay_steps, xy_shape=2):
     initializer = tf.variance_scaling_initializer(distribution='uniform')
-    xy_in = tf.placeholder(tf.float32, shape=[None, 2])
-    xy_bar_in = tf.placeholder(tf.float32, shape=[None, 2])
-    W_1 = tf.Variable(initializer([2, n_hidden]), dtype=tf.float32)
+    xy_in = tf.placeholder(tf.float32, shape=[None, xy_shape])
+    xy_bar_in = tf.placeholder(tf.float32, shape=[None, xy_shape])
+    W_1 = tf.Variable(initializer([xy_shape, n_hidden]), dtype=tf.float32)
     b_1 = tf.Variable(tf.zeros(n_hidden), dtype=tf.float32)
     z_1 = tf.matmul(xy_in, W_1) + b_1
     z_1_bar = tf.matmul(xy_bar_in, W_1) + b_1
@@ -58,9 +60,10 @@ def build_net(n_hidden, lr, global_step, decay_steps):
 def mine(x, y, n_hidden=50, lr=0.05, batch_size=128, early_stopping=40, stop_wait=100):
     ds = DistributionSimulator(x, y)
     ds.init_batches(batch_size)
+    xy_shape = ds.x.shape[1] + 1
     global_step = ds.n_batch * 100
     decay_steps = int(global_step / 100)
-    xy_in, xy_bar_in, neural_info_measure, optimize = build_net(n_hidden, lr, global_step, decay_steps)
+    xy_in, xy_bar_in, neural_info_measure, optimize = build_net(n_hidden, lr, global_step, decay_steps, xy_shape)
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
     neural_info_estimates = []
@@ -71,8 +74,8 @@ def mine(x, y, n_hidden=50, lr=0.05, batch_size=128, early_stopping=40, stop_wai
         batch_mi = []
         while not done:
             batch, done = ds.next_batch()
-            batch_xy = batch[:, :2]
-            batch_x_y = np.array([batch[:, 0], batch[:, -1]]).T
+            batch_xy = batch[:, :-1]
+            batch_x_y = np.concatenate([batch[:, :-2], batch[:, -1].reshape(-1,1)], axis=1)
             _, mi = sess.run([optimize, neural_info_measure], feed_dict={xy_in: batch_xy, \
                                                                     xy_bar_in: batch_x_y})
             batch_mi.append(mi)
