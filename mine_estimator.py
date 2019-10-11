@@ -41,8 +41,8 @@ def build_net(n_hidden, lr, global_step, decay_steps, xy_shape=2):
     b_1 = tf.Variable(tf.zeros(n_hidden), dtype=tf.float32)
     z_1 = tf.matmul(xy_in, W_1) + b_1
     z_1_bar = tf.matmul(xy_bar_in, W_1) + b_1
-    a_1 = tf.nn.leaky_relu(z_1)
-    a_1_bar = tf.nn.leaky_relu(z_1_bar)
+    a_1 = z_1 * tf.nn.sigmoid(z_1)
+    a_1_bar = z_1_bar * tf.nn.sigmoid(z_1_bar)
 
     W_2 = tf.Variable(initializer([n_hidden, 1]), dtype=tf.float32)
     b_2 = tf.Variable(tf.zeros(1), dtype=tf.float32)
